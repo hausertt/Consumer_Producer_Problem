@@ -3,19 +3,19 @@
 //
 
 #include <pthread.h>
-#include <cstdio>
+#include <stdio.h>
 
+#define nullptr NULL
 
 /* Programm that shows the consumer producer problem with
  * 2 Consumers
  * 3 Producers
  * and with notify all
- * (in C++)
  * --------------------
  * To only use notify change 'pthread_cond_broadcast(&dieCondition);' to
  * pthread_cond_signal(&dieCondition);
  * --------------------
- * !!!Main program runs indefinitely!!!
+ * !!!Main program runs infinite!!!
  * !!!Stop it manually!!! */
 
 /* A mutex protecting put. */
@@ -37,10 +37,11 @@ pthread_t producer2;
 pthread_t producer3;
 
 /* Variable if data can be consumed */
-bool available = false;
+int available = 0;
 
 /* Data and Zahl || Zahl put in Data */
 int data;
+int zahl;
 
 void *produce(void *);
 
@@ -52,31 +53,27 @@ void* put(int zahl) {
     int id = pthread_self();
     while(available) {
         printf("[put]:: Thread %d geraet in WAITING \n",id);
-        pthread_cond_wait(&dieCondition,&getMutex);
+        pthread_cond_wait(&dieCondition,&putMutex);
         printf("[put]:: Thread %d macht weiter \n", id);
     }
     data = zahl;
-    printf("[put]:: Thread %d hat %d in Data eingetragen \n", id, zahl);
-    available = true;
-    printf("[put]:: Thread %d available = true \n", id);
-    //pthread_cond_broadcast(&dieCondition);
-    pthread_cond_signal(&dieCondition);
+    available = 1;
+    pthread_cond_broadcast(&dieCondition);
+    //pthread_cond_signal(&dieCondition);
     return nullptr;
 }
 
 /* Get. Returns data */
 int get() {
     int id = pthread_self();
-    printf("[get]:: Thread %d versucht Data zu consumen \n", id);
     while(!available) {
         printf("[get]:: Thread %d geraet in WAITING \n",id);
         pthread_cond_wait(&dieCondition,&getMutex);
         printf("[get]:: Thread %d macht weiter \n", id);
     }
-    available = false;
-    printf("[get]:: Thread %d available = false \n", id);
-    //pthread_cond_broadcast(&dieCondition);
-    pthread_cond_signal(&dieCondition);
+    available = 0;
+    pthread_cond_broadcast(&dieCondition);
+    //pthread_cond_signal(&dieCondition);
     return data;
 }
 
@@ -86,19 +83,20 @@ int main() {
     pthread_mutex_init(&putMutex, nullptr);
     pthread_mutex_init(&getMutex, nullptr);
 
+
     pthread_cond_init(&dieCondition, nullptr);
+
+    /* Creates new threads. The new threads will run consume function. */
+    pthread_create(&consumer1,nullptr,&consume,nullptr);
+    pthread_create(&consumer2,nullptr,&consume,nullptr);
 
     /* Creates new threads. The new threads will run produce function. */
     pthread_create(&producer1,nullptr,&produce,nullptr);
     pthread_create(&producer2,nullptr,&produce,nullptr);
     pthread_create(&producer3,nullptr,&produce,nullptr);
 
-    /* Creates new threads. The new threads will run consume function. */
-    pthread_create(&consumer1,nullptr,&consume,nullptr);
-    pthread_create(&consumer2,nullptr,&consume,nullptr);
-
     /* main thread is blocked from finishing */
-    while(true) {
+    while(1) {
         /* Endless Loop */
     }
 }
@@ -108,24 +106,23 @@ void *consume(void * unused) {
     int returnedZahl;
     int id = pthread_self();
     /* Endless Loop */
-    while(true) {
+    while(1) {
         pthread_mutex_lock(&getMutex);
         returnedZahl = get();
-        printf("[consume]:: Thread %d hat Zahl %d konsumiert\n", id, returnedZahl);
         pthread_mutex_unlock(&getMutex);
+        printf("[consume]:: Thread %d hat Zahl %d konsumiert\n", id, returnedZahl);
     }
 }
 
 /* Produces new zahl continuously and puts it into data */
 void *produce(void * unused) {
-    int zahl;
     int id = pthread_self();
     /* Endless Loop */
-    while(true) {
+    while(1) {
         zahl++;
-        pthread_mutex_lock(&getMutex);
+        pthread_mutex_lock(&putMutex);
         printf("[produce]:: Thread %d hat Zahl %d produziert\n", id, zahl);
         put(zahl);
-        pthread_mutex_unlock(&getMutex);
+        pthread_mutex_unlock(&putMutex);
     }
 }
