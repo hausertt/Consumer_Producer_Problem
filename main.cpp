@@ -3,7 +3,10 @@
 //
 
 #include <pthread.h>
-#include <cstdio>
+#include <cstdio>   //for C use stdio.h
+
+/* C */
+/* #define nullptr NULL */
 
 
 /* Programm that shows the consumer producer problem with
@@ -16,13 +19,25 @@
  * pthread_cond_signal(&dieCondition);
  * --------------------
  * !!!Main program runs indefinitely!!!
- * !!!Stop it manually!!! */
+ * !!!Stop it manually!!!
+ * --------------------
+ * Compiler Flag pthread is needed:
+ * add
+ * SET(CMAKE_CXX_FLAGS -pthread)
+ * to your CMakeLists.txt
+ * --------------------
+ * C++ Standard 14
+ * to run in C */
 
+
+/* The Output is a bit messy with 2 Mutex / one for each Function */
 /* A mutex protecting put. */
-pthread_mutex_t putMutex;
-
+//pthread_mutex_t putMutex;
 /* A mutex protecting get. */
-pthread_mutex_t getMutex;
+//pthread_mutex_t getMutex;
+
+/* Mutex for put and get Function */
+pthread_mutex_t getputMutex;
 
 /* Main condition */
 pthread_cond_t dieCondition;
@@ -38,6 +53,8 @@ pthread_t producer3;
 
 /* Variable if data can be consumed */
 bool available = false;
+/* C */
+/* int available = 0; */
 
 /* Data and Zahl || Zahl put in Data */
 int data;
@@ -52,39 +69,43 @@ void* put(int zahl) {
     int id = pthread_self();
     while(available) {
         printf("[put]:: Thread %d geraet in WAITING \n",id);
-        pthread_cond_wait(&dieCondition,&getMutex);
+        pthread_cond_wait(&dieCondition,&getputMutex);
         printf("[put]:: Thread %d macht weiter \n", id);
     }
     data = zahl;
     printf("[put]:: Thread %d hat %d in Data eingetragen \n", id, zahl);
+    /* C */
+    /* available = 1 */
     available = true;
-    printf("[put]:: Thread %d available = true \n", id);
-    //pthread_cond_broadcast(&dieCondition);
-    pthread_cond_signal(&dieCondition);
+    printf("[put]:: Thread %d available = true gesetzt (Data ist voll/es kann nix neues eingetragen werden) \n", id);
+    pthread_cond_broadcast(&dieCondition);
+    //pthread_cond_signal(&dieCondition);
     return nullptr;
 }
 
 /* Get. Returns data */
 int get() {
     int id = pthread_self();
-    printf("[get]:: Thread %d versucht Data zu consumen \n", id);
     while(!available) {
         printf("[get]:: Thread %d geraet in WAITING \n",id);
-        pthread_cond_wait(&dieCondition,&getMutex);
+        pthread_cond_wait(&dieCondition,&getputMutex);
         printf("[get]:: Thread %d macht weiter \n", id);
     }
+    /* C */
+    /* available = 0 */
     available = false;
-    printf("[get]:: Thread %d available = false \n", id);
-    //pthread_cond_broadcast(&dieCondition);
-    pthread_cond_signal(&dieCondition);
+    printf("[get]:: Thread %d hat available = false gesetzt (Data konnte ausgelesen werden) \n", id);
+    pthread_cond_broadcast(&dieCondition);
+    //pthread_cond_signal(&dieCondition);
     return data;
 }
 
 
 /* The main program. */
 int main() {
-    pthread_mutex_init(&putMutex, nullptr);
-    pthread_mutex_init(&getMutex, nullptr);
+    pthread_mutex_init(&getputMutex, nullptr);
+    //pthread_mutex_init(&getMutex, nullptr);
+    //pthread_mutex_init(&putMutex, nullptr);
 
     pthread_cond_init(&dieCondition, nullptr);
 
@@ -109,10 +130,10 @@ void *consume(void * unused) {
     int id = pthread_self();
     /* Endless Loop */
     while(true) {
-        pthread_mutex_lock(&getMutex);
+        pthread_mutex_lock(&getputMutex);
         returnedZahl = get();
         printf("[consume]:: Thread %d hat Zahl %d konsumiert\n", id, returnedZahl);
-        pthread_mutex_unlock(&getMutex);
+        pthread_mutex_unlock(&getputMutex);
     }
 }
 
@@ -123,9 +144,9 @@ void *produce(void * unused) {
     /* Endless Loop */
     while(true) {
         zahl++;
-        pthread_mutex_lock(&getMutex);
+        pthread_mutex_lock(&getputMutex);
         printf("[produce]:: Thread %d hat Zahl %d produziert\n", id, zahl);
         put(zahl);
-        pthread_mutex_unlock(&getMutex);
+        pthread_mutex_unlock(&getputMutex);
     }
 }
